@@ -1,0 +1,121 @@
+:root {
+  color: #1d1d1f;
+  background: #f6f6f4;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  --paper: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #68686d;
+  --line: #dededb;
+  --accent: #2358c5;
+  --assistant: #f1f2f4;
+  --user: #263142;
+  --success: #25704a;
+  --success-soft: #eaf4ee;
+  --danger: #9b332c;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #f6f6f4; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+
+.app-shell { width: min(1000px, calc(100% - 40px)); margin: 0 auto; padding-bottom: 48px; }
+.site-header { display: flex; justify-content: space-between; align-items: center; min-height: 72px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: baseline; gap: 12px; }
+.brand strong { font-size: 20px; letter-spacing: -.02em; }
+.brand span, .conference-date { color: var(--muted); font-size: 12px; }
+
+.demo-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, .8fr); gap: 16px; margin-top: 32px; align-items: stretch; }
+.assistant-panel, .reservation-panel, .inventory-section, .execution-details { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.assistant-panel { overflow: hidden; }
+.panel-heading, .section-title, .reservation-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.panel-heading { min-height: 58px; padding: 0 20px; border-bottom: 1px solid var(--line); }
+.panel-heading h1, .section-title h2, .reservation-panel h2 { margin: 0; font-size: 17px; }
+.online-status { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.online-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+
+.conversation { display: flex; min-height: 380px; flex-direction: column; gap: 18px; padding: 24px 20px; }
+.message { max-width: 80%; }
+.message > span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+.message p { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--assistant); font-size: 14px; line-height: 1.55; }
+.assistant-message { align-self: flex-start; }
+.user-message { align-self: flex-end; }
+.user-message > span { text-align: right; }
+.user-message p { background: var(--user); color: white; }
+.error-message p { background: #f8e9e7; color: #762a24; }
+.working-dots { display: inline-block; animation: fade 1s ease-in-out infinite alternate; }
+@keyframes fade { to { opacity: .25; } }
+
+.prompt-suggestion { align-self: flex-start; max-width: 86%; padding: 11px 13px; border: 1px solid #bfcbe3; border-radius: 10px; background: white; color: #263b68; text-align: left; line-height: 1.45; }
+.prompt-suggestion:hover { border-color: var(--accent); background: #f7f9fd; }
+.prompt-suggestion span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+.composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 16px 20px 10px; border-top: 1px solid var(--line); }
+.composer input { width: 100%; min-width: 0; padding: 11px 13px; border: 1px solid #cfcfcb; border-radius: 8px; outline: none; color: var(--ink); background: white; }
+.composer input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px #dce5f8; }
+.primary-button { padding: 11px 18px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: white; font-weight: 700; }
+.primary-button:hover:not(:disabled) { background: #1949a8; }
+.conversation-actions { padding: 0 20px 14px; }
+.text-button { padding: 3px 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
+.text-button:hover:not(:disabled) { color: var(--ink); text-decoration: underline; }
+button:disabled, input:disabled { cursor: wait; opacity: .55; }
+
+.overline { margin: 0 0 8px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.reservation-panel { padding: 22px; }
+.reservation-heading > span { padding: 4px 7px; border-radius: 20px; background: #ececea; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.reservation-confirmed { border-top: 4px solid var(--success); }
+.reservation-confirmed .reservation-heading > span { background: var(--success-soft); color: var(--success); }
+.reservation-failed, .reservation-unavailable { border-top: 4px solid var(--danger); }
+.reservation-unknown { border-top: 4px solid #9a6c18; }
+.reservation-panel h2 { margin-top: 26px; font-size: 23px; line-height: 1.2; }
+.reservation-panel > p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+.empty-reservation { display: flex; flex-direction: column; justify-content: center; }
+.empty-reservation h2 { margin-top: 4px; }
+.reservation-panel dl { margin: 28px 0 0; }
+.reservation-panel dl div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.reservation-panel dt { color: var(--muted); font-size: 11px; }
+.reservation-panel dd { margin: 0; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.trace-id { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
+.trace-id span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.trace-id code { display: block; overflow: hidden; color: var(--success); font-size: 10px; text-overflow: ellipsis; }
+
+.inventory-section { margin-top: 16px; padding: 22px; }
+.section-title { margin-bottom: 16px; }
+.section-title .overline { margin-bottom: 4px; }
+.section-title > span { color: var(--muted); font-size: 11px; }
+.workshop-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.workshop-row { display: grid; grid-template-columns: 68px minmax(0, 1fr) 82px; gap: 16px; align-items: center; min-height: 66px; border-bottom: 1px solid var(--line); }
+.workshop-row time { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.workshop-row strong, .workshop-row div span { display: block; }
+.workshop-row strong { font-size: 13px; }
+.workshop-row div span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.workshop-row.selected { box-shadow: inset 3px 0 var(--success); }
+.seat-count { justify-self: end; color: var(--muted); font-size: 11px; }
+.seat-count.last-seat { color: var(--danger); font-weight: 700; }
+
+.execution-details { margin-top: 16px; padding: 0 22px; }
+.execution-details summary { display: flex; justify-content: space-between; gap: 20px; padding: 16px 0; color: var(--muted); font-size: 12px; cursor: pointer; }
+.execution-details summary time { font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.execution-list { list-style: none; margin: 0; padding: 0 0 16px; border-top: 1px solid var(--line); }
+.execution-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) 70px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.execution-check { color: var(--success); font-weight: 800; }
+.execution-list time { color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+
+@media (max-width: 760px) {
+  .app-shell { width: min(100% - 24px, 1000px); }
+  .site-header, .brand { align-items: flex-start; flex-direction: column; }
+  .site-header { justify-content: center; gap: 5px; }
+  .conference-date { display: none; }
+  .demo-layout { grid-template-columns: 1fr; margin-top: 18px; }
+  .conversation { min-height: 330px; }
+}
+
+@media (max-width: 500px) {
+  .message, .prompt-suggestion { max-width: 92%; }
+  .composer { grid-template-columns: 1fr; }
+  .workshop-row { grid-template-columns: 52px minmax(0, 1fr); padding: 10px 0; }
+  .seat-count { grid-column: 2; justify-self: start; }
+  .execution-list li { grid-template-columns: 20px minmax(0, 1fr); }
+  .execution-list time { grid-column: 2; text-align: left; }
+}

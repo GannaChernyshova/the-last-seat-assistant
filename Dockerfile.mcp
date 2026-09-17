@@ -1,0 +1,13 @@
+FROM node:22.22.1-alpine
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY src ./src
+COPY migrations ./migrations
+
+EXPOSE 3101
+CMD ["node", "--experimental-strip-types", "src/mcp/main.ts"]

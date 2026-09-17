@@ -1,0 +1,41 @@
+name: the-last-seat
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: last_seat
+      POSTGRES_USER: last_seat
+      POSTGRES_PASSWORD: last_seat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+      - ./migrations/002_seed.sql:/docker-entrypoint-initdb.d/002_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U last_seat -d last_seat"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  workshop-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    environment:
+      DATABASE_URL: postgresql://last_seat:last_seat@postgres:5432/last_seat
+      PORT: "3101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3101:3101"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3101/health >/dev/null"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:

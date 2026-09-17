@@ -1,0 +1,264 @@
+openapi: 3.0.3
+info:
+  title: OpenAI Chat Completions
+  version: 1.0.0
+  description: Deterministic Chat Completions fixtures for The Last Seat conference demo.
+paths:
+  /v1/chat/completions:
+    post:
+      operationId: createChatCompletion
+      summary: Create a deterministic non-streaming chat completion
+      x-microcks-operation:
+        dispatcher: JS
+        dispatcherRules: |-
+          const header = mockRequest.getRequestHeader("x-mock-scenario");
+          const scenario = header && header.length ? String(header[0]) : "";
+          let body;
+          try {
+            body = JSON.parse(mockRequest.requestContent());
+          } catch (error) {
+            return "Unexpected request";
+          }
+
+          const allowed = [
+            "happy", "model_timeout", "search_timeout", "final_model_timeout",
+            "repeated_reservation", "invalid_arguments",
+            "tool_error"
+          ];
+          const messages = Array.isArray(body.messages) ? body.messages : [];
+          const toolNames = Array.isArray(body.tools)
+            ? body.tools.map((tool) => tool.function && tool.function.name).sort().join(",")
+            : "";
+          const userMessage = messages.find((message) => message.role === "user");
+          if (!allowed.includes(scenario)
+              || !userMessage
+              || !String(userMessage.content).includes("afternoon workshop")
+              || toolNames !== "reserve_seat,search_workshops") {
+            return "Unexpected request";
+          }
+
+          const toolMessages = messages.filter((message) => message.role === "tool");
+          const lastTool = toolMessages.length ? toolMessages[toolMessages.length - 1] : null;
+          const lastContent = lastTool ? String(lastTool.content) : "";
+
+          if (scenario === "invalid_arguments" && toolMessages.length === 0) {
+            return "Invalid arguments";
+          }
+          if (toolMessages.length === 0) {
+            return "Search workshops";
+          }
+          if (toolMessages.length === 1) {
+            if (!lastTool.tool_call_id || !lastContent.includes("workshops")) {
+              return "Unexpected request";
+            }
+            return scenario === "tool_error" ? "Reserve missing workshop" : "Reserve last seat";
+          }
+          if (scenario === "repeated_reservation" && toolMessages.length === 2) {
+            if (!lastContent.includes("confirmed")) {
+              return "Unexpected request";
+            }
+            return "Repeat reservation";
+          }
+          if (lastContent.includes("unavailable")) {
+            return "Final unavailable";
+          }
+          if (lastContent.includes("error") || lastContent.includes("WORKSHOP_NOT_FOUND")) {
+            return "Final tool error";
+          }
+          if (lastContent.includes("confirmed")) {
+            return "Final confirmation";
+          }
+          return "Unexpected request";
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+            example:
+              model: microcks-gpt
+              stream: false
+              messages:
+                - role: user
+                  content: Find an afternoon workshop about testing AI applications and reserve a seat for me.
+      responses:
+        "200":
+          description: A deterministic completion selected from the actual conversation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCompletion"
+              examples:
+                Search workshops:
+                  value:
+                    id: chatcmpl-search-001
+                    object: chat.completion
+                    created: 1789488000
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: null
+                          tool_calls:
+                            - id: call_search_001
+                              type: function
+                              function:
+                                name: search_workshops
+                                arguments: '{"topic":"testing AI applications","timeOfDay":"afternoon"}'
+                        finish_reason: tool_calls
+                    usage: { prompt_tokens: 120, completion_tokens: 18, total_tokens: 138 }
+                Reserve last seat:
+                  value:
+                    id: chatcmpl-reserve-001
+                    object: chat.completion
+                    created: 1789488001
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: null
+                          tool_calls:
+                            - id: call_reserve_001
+                              type: function
+                              function:
+                                name: reserve_seat
+                                arguments: '{"workshopId":"ws-testing-agentic-workflows"}'
+                        finish_reason: tool_calls
+                    usage: { prompt_tokens: 210, completion_tokens: 16, total_tokens: 226 }
+                Repeat reservation:
+                  value:
+                    id: chatcmpl-repeat-001
+                    object: chat.completion
+                    created: 1789488002
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: null
+                          tool_calls:
+                            - id: call_reserve_002
+                              type: function
+                              function:
+                                name: reserve_seat
+                                arguments: '{"workshopId":"ws-testing-agentic-workflows"}'
+                        finish_reason: tool_calls
+                    usage: { prompt_tokens: 280, completion_tokens: 16, total_tokens: 296 }
+                Invalid arguments:
+                  value:
+                    id: chatcmpl-invalid-001
+                    object: chat.completion
+                    created: 1789488000
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: null
+                          tool_calls:
+                            - id: call_invalid_001
+                              type: function
+                              function:
+                                name: reserve_seat
+                                arguments: '{"workshopId":42,"requestId":"untrusted-model-value"}'
+                        finish_reason: tool_calls
+                    usage: { prompt_tokens: 120, completion_tokens: 18, total_tokens: 138 }
+                Reserve missing workshop:
+                  value:
+                    id: chatcmpl-tool-error-001
+                    object: chat.completion
+                    created: 1789488001
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: null
+                          tool_calls:
+                            - id: call_reserve_missing_001
+                              type: function
+                              function:
+                                name: reserve_seat
+                                arguments: '{"workshopId":"ws-does-not-exist"}'
+                        finish_reason: tool_calls
+                    usage: { prompt_tokens: 210, completion_tokens: 16, total_tokens: 226 }
+                Final confirmation:
+                  value:
+                    id: chatcmpl-final-001
+                    object: chat.completion
+                    created: 1789488003
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: Your seat is confirmed for Testing Agentic Workflows Locally at 14:00 UTC.
+                        finish_reason: stop
+                    usage: { prompt_tokens: 330, completion_tokens: 22, total_tokens: 352 }
+                Final unavailable:
+                  value:
+                    id: chatcmpl-unavailable-001
+                    object: chat.completion
+                    created: 1789488003
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: That workshop just sold out, so no reservation was created.
+                        finish_reason: stop
+                    usage: { prompt_tokens: 330, completion_tokens: 18, total_tokens: 348 }
+                Final tool error:
+                  value:
+                    id: chatcmpl-error-001
+                    object: chat.completion
+                    created: 1789488003
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: I could not reserve that workshop because the tool returned an error.
+                        finish_reason: stop
+                    usage: { prompt_tokens: 330, completion_tokens: 19, total_tokens: 349 }
+        "422":
+          description: Any unrecognised scenario or conversation fails visibly.
+          content:
+            application/json:
+              examples:
+                Unexpected request:
+                  value:
+                    error:
+                      message: Unexpected model request; no fixture matched the scenario and actual tool-message history.
+                      type: fixture_mismatch
+                      code: unexpected_request
+components:
+  schemas:
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model: { type: string }
+        stream: { type: boolean, enum: [false] }
+        messages:
+          type: array
+          items: { type: object, additionalProperties: true }
+        tools:
+          type: array
+          items: { type: object, additionalProperties: true }
+      additionalProperties: true
+    ChatCompletion:
+      type: object
+      required: [id, object, created, model, choices]
+      properties:
+        id: { type: string }
+        object: { type: string, enum: [chat.completion] }
+        created: { type: integer }
+        model: { type: string }
+        choices:
+          type: array
+          items: { type: object, additionalProperties: true }
+        usage: { type: object, additionalProperties: true }
+      additionalProperties: true

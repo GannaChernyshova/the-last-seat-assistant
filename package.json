@@ -1,0 +1,58 @@
+{
+  "name": "the-last-seat",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,ui -c magenta,cyan \"tsx watch src/backend/main.ts\" \"vite --host 0.0.0.0\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration",
+    "test:integration:happy": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"happy path\"",
+    "test:integration:slow-model": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"slow model\"",
+    "test:integration:slow-search": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"slow search\"",
+    "test:integration:delayed-explanation": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"delayed explanation\"",
+    "test:integration:idempotency": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"repeated reservation\"",
+    "test:integration:validation": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"validation\"",
+    "test:integration:tool-error": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"tool error\"",
+    "test:integration:concurrency": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"concurrency\"",
+    "test:integration:idempotency-conflict": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"idempotency conflict\"",
+    "test:integration:mock-contract": "vitest run tests/integration/last-seat.test.ts --reporter=verbose -t \"mock contract\"",
+    "build": "npm run typecheck && vite build",
+    "start": "tsx src/backend/main.ts"
+  },
+  "dependencies": {
+    "@langchain/core": "1.2.11",
+    "@langchain/openai": "1.5.13",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "langsmith": "0.10.4",
+    "pg": "8.23.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsx": "4.23.13",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@microcks/microcks-testcontainers": "0.3.5",
+    "@rolldown/binding-wasm32-wasi": "1.2.8",
+    "@testcontainers/postgresql": "11.7.2",
+    "@testcontainers/toxiproxy": "11.7.2",
+    "@types/express": "5.0.6",
+    "@types/node": "24.3.1",
+    "@types/pg": "8.15.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "concurrently": "10.0.5",
+    "lightningcss": "npm:lightningcss-wasm@1.33.0",
+    "testcontainers": "11.7.2",
+    "typescript": "5.9.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
+  }
+}
