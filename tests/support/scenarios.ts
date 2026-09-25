@@ -5,4 +5,5 @@ export type Scenario =
   | "final_model_timeout"
   | "repeated_reservation"
   | "invalid_arguments"
+  | "nonsense_model"
   | "tool_error";

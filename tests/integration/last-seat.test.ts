@@ -59,7 +59,10 @@ describe("The Last Seat agentic workflow", () => {
 
     expect(outcome.status).toBe("confirmed");
     expect(outcome.reservation?.requestId).toBe(outcome.requestId);
+    // Three model turns: request a search, request a booking, then explain the result.
+    // Each tool runs once; no recovery lookup is needed.
     expect(outcome.attempts).toEqual({ model: 3, search: 1, reserve: 1, reconcile: 0 });
+    // Check the model's requested tools, their order, and their arguments.
     expect(outcome.modelToolCalls).toEqual([
       {
         name: "search_workshops",
@@ -72,30 +75,121 @@ describe("The Last Seat agentic workflow", () => {
         callId: "call_reserve_001"
       }
     ]);
+    // Read PostgreSQL independently to verify that exactly one booking took the last seat.
     expect(state.reservations).toHaveLength(1);
     expect(remainingSeats(state)).toBe(0);
   });
 
-  it("[slow model] bounds the initial response and executes no tools", async () => {
-    const startedAt = Date.now();
-    const outcome = await runScenario("model_timeout", {
-      toxiproxy: { modelLatencyMs: MODEL_RESPONSE_LATENCY_MS },
-      config: { modelTimeoutMs: CLIENT_TIMEOUT_MS }
+  describe("Model timeouts", () => {
+    it("[slow model] bounds the initial response and executes no tools", async () => {
+      const startedAt = Date.now();
+      const outcome = await runScenario("model_timeout", {
+        toxiproxy: { modelLatencyMs: MODEL_RESPONSE_LATENCY_MS },
+        config: { modelTimeoutMs: CLIENT_TIMEOUT_MS }
+      });
+      const elapsed = Date.now() - startedAt;
+      const state = await getDemoState(testcontainers.pool);
+
+      // An initial model timeout must end the workflow with an explicit failure.
+      expect(outcome.status).toBe("failed");
+      expect(outcome.message).toContain("No booking action was taken");
+      // Count the failed model attempt, with no retry and no tool execution.
+      expect(outcome.attempts).toEqual({ model: 1, search: 0, reserve: 0, reconcile: 0 });
+      // Allow timing overhead, but require the call to wait for its timeout and finish promptly.
+      expect(elapsed).toBeGreaterThanOrEqual(CLIENT_TIMEOUT_MS - 50);
+      expect(elapsed).toBeLessThan(MAX_BOUNDED_DURATION_MS);
+      // Neither a model tool request nor a persisted booking should exist.
+      expect(outcome.modelToolCalls).toHaveLength(0);
+      expect(state.reservations).toHaveLength(0);
+
+      // Let the prescribed delayed reply drain. A late model response cannot resume an ended loop.
+      await delay(LATE_RESPONSE_SETTLE_MS);
+      expect((await getDemoState(testcontainers.pool)).reservations).toHaveLength(0);
     });
-    const elapsed = Date.now() - startedAt;
-    const state = await getDemoState(testcontainers.pool);
 
+    it("[delayed explanation] keeps the confirmed reservation", async () => {
+      const outcome = await runScenario("final_model_timeout", {
+        toxiproxy: { modelLatencyMs: MODEL_RESPONSE_LATENCY_MS },
+        config: { modelTimeoutMs: CLIENT_TIMEOUT_MS }
+      });
+      const state = await getDemoState(testcontainers.pool);
+
+      // The database booking remains valid even when the model cannot explain it.
+      expect(outcome.status).toBe("confirmed");
+      expect(outcome.message).toContain("final model explanation was unavailable");
+      expect(outcome.reservation).toBeDefined();
+      // The third model attempt times out after one successful search and booking.
+      expect(outcome.attempts).toEqual({ model: 3, search: 1, reserve: 1, reconcile: 0 });
+      expect(state.reservations).toHaveLength(1);
+      expect(outcome.timeline.some((event) => event.phase === "fallback.confirmation")).toBe(true);
+
+      // A late explanation must not trigger another booking or remove the existing one.
+      await delay(LATE_RESPONSE_SETTLE_MS);
+      expect((await getDemoState(testcontainers.pool)).reservations).toHaveLength(1);
+    });
+  });
+
+
+  describe("MCP timeouts", () => {
+    it("[slow search] reports unavailable without fabricating or booking", async () => {
+      const outcome = await runScenario("search_timeout", {
+        toxiproxy: { mcpLatencyMs: MCP_RESPONSE_LATENCY_MS },
+        config: { mcpTimeoutMs: CLIENT_TIMEOUT_MS }
+      });
+      const state = await getDemoState(testcontainers.pool);
+
+      // A search timeout means availability could not be checked, not that seats are sold out.
+      expect(outcome.status).toBe("failed");
+      expect(outcome.message).toContain("availability is temporarily unavailable");
+      // Stop after the failed search; do not ask the model to book without results.
+      expect(outcome.attempts).toEqual({ model: 1, search: 1, reserve: 0, reconcile: 0 });
+      expect(outcome.modelToolCalls[0]?.arguments).toEqual({
+        topic: "testing AI applications",
+        timeOfDay: "afternoon"
+      });
+      // Confirm directly in PostgreSQL that the failed search caused no booking.
+      expect(state.reservations).toHaveLength(0);
+    });
+
+    it("[reservation timeout] reconciles a committed write without booking again", async () => {
+      const outcome = await runScenario("happy", {
+        toxiproxy: { tool: "reserve_seat", mcpLatencyMs: MCP_RESPONSE_LATENCY_MS },
+        config: { mcpTimeoutMs: CLIENT_TIMEOUT_MS }
+      });
+      const state = await getDemoState(testcontainers.pool);
+
+      // The write can commit before its response times out; recovery must find that booking.
+      expect(outcome.status).toBe("confirmed");
+      // Recover with one get_reservation lookup instead of repeating the reserve_seat write.
+      expect(outcome.attempts).toEqual({ model: 3, search: 1, reserve: 1, reconcile: 1 });
+      // Recovery must leave exactly one booking consuming the last seat.
+      expect(state.reservations).toHaveLength(1);
+      expect(remainingSeats(state)).toBe(0);
+      // The recovered outcome must reference the reservation actually stored in PostgreSQL.
+      expect(outcome.reservation?.id).toBe(state.reservations[0]?.id);
+    });
+  });
+
+  it("[nonsense model] rejects text instead of a tool call without booking", async () => {
+    const before = await getDemoState(testcontainers.pool);
+    const outcome = await runScenario("nonsense_model");
+
+    // Free-form model text cannot replace the required search tool call.
     expect(outcome.status).toBe("failed");
-    expect(outcome.message).toContain("No booking action was taken");
+    expect(outcome.message).toBe(
+      "The model did not call search_workshops, so no availability was invented and no reservation was attempted."
+    );
+    // No booking is reported, and the model's text triggers no tool execution.
+    expect(outcome.reservation).toBeUndefined();
     expect(outcome.attempts).toEqual({ model: 1, search: 0, reserve: 0, reconcile: 0 });
-    expect(elapsed).toBeGreaterThanOrEqual(CLIENT_TIMEOUT_MS - 50);
-    expect(elapsed).toBeLessThan(MAX_BOUNDED_DURATION_MS);
     expect(outcome.modelToolCalls).toHaveLength(0);
-    expect(state.reservations).toHaveLength(0);
-
-    // Let the prescribed delayed reply drain. A late model response cannot resume an ended loop.
-    await delay(LATE_RESPONSE_SETTLE_MS);
-    expect((await getDemoState(testcontainers.pool)).reservations).toHaveLength(0);
+    // The model replied successfully; this is not a transport error or timeout.
+    expect(outcome.timeline.find((event) => event.phase === "model.response")).toMatchObject({
+      status: "succeeded",
+      metadata: { finishReason: "stop", toolCalls: [] }
+    });
+    // Compare the full database state to catch changes to either reservations or seat capacity.
+    expect(await getDemoState(testcontainers.pool)).toEqual(before);
   });
 
   it("[empty search] stops after one search when no workshops match", async () => {
@@ -137,41 +231,6 @@ describe("The Last Seat agentic workflow", () => {
     }
   });
 
-  it("[slow search] reports unavailable without fabricating or booking", async () => {
-    const outcome = await runScenario("search_timeout", {
-      toxiproxy: { mcpLatencyMs: MCP_RESPONSE_LATENCY_MS },
-      config: { mcpTimeoutMs: CLIENT_TIMEOUT_MS }
-    });
-    const state = await getDemoState(testcontainers.pool);
-
-    expect(outcome.status).toBe("failed");
-    expect(outcome.message).toContain("availability is temporarily unavailable");
-    expect(outcome.attempts).toEqual({ model: 1, search: 1, reserve: 0, reconcile: 0 });
-    expect(outcome.modelToolCalls[0]?.arguments).toEqual({
-      topic: "testing AI applications",
-      timeOfDay: "afternoon"
-    });
-    expect(state.reservations).toHaveLength(0);
-  });
-
-  it("[delayed explanation] keeps the confirmed reservation", async () => {
-    const outcome = await runScenario("final_model_timeout", {
-      toxiproxy: { modelLatencyMs: MODEL_RESPONSE_LATENCY_MS },
-      config: { modelTimeoutMs: CLIENT_TIMEOUT_MS }
-    });
-    const state = await getDemoState(testcontainers.pool);
-
-    expect(outcome.status).toBe("confirmed");
-    expect(outcome.message).toContain("final model explanation was unavailable");
-    expect(outcome.reservation).toBeDefined();
-    expect(outcome.attempts).toEqual({ model: 3, search: 1, reserve: 1, reconcile: 0 });
-    expect(state.reservations).toHaveLength(1);
-    expect(outcome.timeline.some((event) => event.phase === "fallback.confirmation")).toBe(true);
-
-    await delay(LATE_RESPONSE_SETTLE_MS);
-    expect((await getDemoState(testcontainers.pool)).reservations).toHaveLength(1);
-  });
-
   it("[idempotency] absorbs a repeated reservation tool call", async () => {
     const outcome = await runScenario("repeated_reservation");
     const state = await getDemoState(testcontainers.pool);
@@ -185,20 +244,7 @@ describe("The Last Seat agentic workflow", () => {
     expect(remainingSeats(state)).toBe(0);
   });
 
-  it("[reservation timeout] reconciles a committed write without booking again", async () => {
-    const outcome = await runScenario("happy", {
-      toxiproxy: { tool: "reserve_seat", mcpLatencyMs: MCP_RESPONSE_LATENCY_MS },
-      config: { mcpTimeoutMs: CLIENT_TIMEOUT_MS }
-    });
-    const state = await getDemoState(testcontainers.pool);
-
-    expect(outcome.status).toBe("confirmed");
-    expect(outcome.attempts).toEqual({ model: 3, search: 1, reserve: 1, reconcile: 1 });
-    expect(state.reservations).toHaveLength(1);
-    expect(remainingSeats(state)).toBe(0);
-    expect(outcome.reservation?.id).toBe(state.reservations[0]?.id);
-  });
-
+  
   it("[validation] rejects invalid tool arguments before MCP or database mutation", async () => {
     const outcome = await runScenario("invalid_arguments");
     const state = await getDemoState(testcontainers.pool);

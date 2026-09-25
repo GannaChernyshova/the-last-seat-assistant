@@ -15,14 +15,19 @@ npm test
 
 No OpenAI key or Compose setup needed. Testcontainers starts the test infrastructure and removes it afterwards. The first run takes longer while Docker downloads the images.
 
-Run just the integration suite or one scenario:
+Run the integration suite, a timeout suite, or one scenario:
 
 ```bash
 npm run test:integration
+npm run test:integration:model-timeouts
+npm run test:integration:mcp-timeouts
+npm run test:integration:nonsense-model
 npm run test:integration:slow-model
 npm run test:integration:slow-search
 npm run test:integration:concurrency
 ```
+
+**Model timeouts** groups **slow model** and **delayed explanation**. **MCP timeouts** groups **slow search** and **reservation timeout**. Each suite shares one container stack with data and faults reset between tests.
 
 To select any test by name:
 
@@ -75,6 +80,7 @@ Start with [the integration tests](tests/integration/last-seat.test.ts). The set
 | Repeated reservation | Return the existing booking. No duplicate row or capacity change. |
 | Last-seat concurrency | Two attendees compete. One books, one gets unavailable. |
 | Invalid arguments / tool error | Report the failure without changing the database. |
+| Nonsense model | Microcks replies with nonsense text instead of a tool call. The workflow rejects it, runs no tools and leaves bookings and capacity unchanged. |
 | Idempotency conflict | Reject a request ID reused for another attendee. |
 | Empty search / search ordering | Stop when nothing matches; order matches by schedule. |
 | Session cleanup | Closing the MCP client releases its server session. |

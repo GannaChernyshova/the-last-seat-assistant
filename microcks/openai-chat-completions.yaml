@@ -22,7 +22,7 @@ paths:
 
           const allowed = [
             "happy", "model_timeout", "search_timeout", "final_model_timeout",
-            "repeated_reservation", "invalid_arguments",
+            "repeated_reservation", "invalid_arguments", "nonsense_model",
             "tool_error"
           ];
           const messages = Array.isArray(body.messages) ? body.messages : [];
@@ -41,6 +41,9 @@ paths:
           const lastTool = toolMessages.length ? toolMessages[toolMessages.length - 1] : null;
           const lastContent = lastTool ? String(lastTool.content) : "";
 
+          if (scenario === "nonsense_model") {
+            return toolMessages.length === 0 ? "Nonsense instead of tool call" : "Unexpected request";
+          }
           if (scenario === "invalid_arguments" && toolMessages.length === 0) {
             return "Invalid arguments";
           }
@@ -89,6 +92,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChatCompletion"
               examples:
+                Nonsense instead of tool call:
+                  value:
+                    id: chatcmpl-nonsense-001
+                    object: chat.completion
+                    created: 1789488000
+                    model: microcks-gpt
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: Bananas can fly. The moon is made of workshop tickets.
+                        finish_reason: stop
+                    usage: { prompt_tokens: 120, completion_tokens: 13, total_tokens: 133 }
                 Search workshops:
                   value:
                     id: chatcmpl-search-001
